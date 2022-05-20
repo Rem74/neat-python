@@ -6,6 +6,7 @@ import os
 
 import neat
 import visualize
+from classes import SmartCreature, World
 
 # 2-input XOR inputs and expected outputs.
 xor_inputs = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
@@ -13,6 +14,10 @@ xor_outputs = [(0.0,), (1.0,), (1.0,), (0.0,)]
 
 
 def eval_genomes(genomes, config):
+    world = World(genomes, config, 100, 100)
+    for _ in range(200):
+        world.tick()
+
     for genome_id, genome in genomes:
         genome.fitness = 4.0
         net = neat.nn.FeedForwardNetwork.create(genome, config)
@@ -37,7 +42,7 @@ def run(config_file):
     p.add_reporter(neat.Checkpointer(5))
 
     # Run for up to 300 generations.
-    winner = p.run(eval_genomes, 50)
+    winner = p.run(eval_genomes, 1)
 
     # Display the winning genome.
     print('\nBest genome:\n{!s}'.format(winner))
