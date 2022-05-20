@@ -15,7 +15,7 @@ class World:
         self.generation = 1
         self.config = config
         self.creatures = []
-        for genome in genomes:
+        for genome_id, genome in genomes:
             while True:
                 x = random.randint(1, width)
                 y = random.randint(1, height)
@@ -50,7 +50,7 @@ class Creature:
         self.x = x
         self.y = y
         self.color = (255, 255, 255)
-        self.brain = Brain()
+        self.brain = None
 
     def draw(self):
         print(self, " X=", self.x, " Y=", self.y, " HEALTH=", self.health)
@@ -146,9 +146,11 @@ class VegetarianCreature(Creature):
 
 class SmartCreature(PredatorCreature):
     def __init__(self, world, genome, x, y):
-        super(PredatorCreature).__init__(world, x, y)
+        super().__init__(world, x, y)
         self.genome = genome
-        self.brain = SmartBrain(neat.nn.FeedForwardNetwork.create(genome, world.config))
+        self.genome.fitness = self.fitness
+        net = neat.nn.FeedForwardNetwork.create(genome, world.config)
+        self.brain = SmartBrain(net)
 
     def bite(self, victim):
         super().bite(victim)
@@ -160,7 +162,7 @@ class Brain:
     def __init__(self):
         pass
 
-    def think(self, input):
+    def think(self, inputs):
         return 0
 
 
@@ -169,6 +171,6 @@ class SmartBrain(Brain):
         super().__init__()
         self.net = net
 
-    def think(self, input):
-        result = self.net.activate(input)
-        return np.argmax(result.numpy())
+    def think(self, inputs):
+        result = self.net.activate(inputs)
+        return np.argmax(result)
