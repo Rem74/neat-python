@@ -1,19 +1,14 @@
-"""
-2-input XOR example -- this is most likely the simplest possible example.
-"""
-
 import os
-
 import neat
-import visualize
+# import visualize
 from classes import World
+from simulation import run_simulation
 
 
 def eval_genomes(genomes, config):
     world = World(genomes, config, 50, 50)
     for _ in range(100):
         world.tick()
-    world.draw()
 
 
 def run(config_file):
@@ -29,7 +24,7 @@ def run(config_file):
     p.add_reporter(neat.StdOutReporter(True))
     stats = neat.StatisticsReporter()
     p.add_reporter(stats)
-    p.add_reporter(neat.Checkpointer(5))
+    p.add_reporter(neat.Checkpointer(1))
 
     # Run for up to 300 generations.
     winner = p.run(eval_genomes, 10)
@@ -43,8 +38,10 @@ def run(config_file):
     # visualize.plot_stats(stats, ylog=False, view=True)
     # visualize.plot_species(stats, view=True)
 
-    # p = neat.Checkpointer.restore_checkpoint('neat-checkpoint-4')
-    # p.run(eval_genomes, 10)
+    # p = neat.Checkpointer.restore_checkpoint('neat-checkpoint-9')
+    # p.run(eval_genomes, 1)
+    genomes = [[0, winner]] * 100
+    run_simulation(World(genomes, config, 50, 50))
 
 
 if __name__ == '__main__':
