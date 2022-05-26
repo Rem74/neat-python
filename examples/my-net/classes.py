@@ -14,24 +14,38 @@ class World:
         self.height = height
         self.generation = 1
         self.config = config
+        self.fruits = []
         self.creatures = []
         for genome_id, genome in genomes:
-            while True:
-                x = random.randint(1, width)
-                y = random.randint(1, height)
-                if self.check_position(x, y) is None:
-                    break
-            self.creatures.append(SmartCreature(self, genome, x, y))
+            pos = self.random_pos()
+            self.creatures.append(SmartCreature(self, genome, pos[0], pos[1]))
+        for _ in range(50):
+            self.add_fruit()
 
     def draw(self):
         for c in self.creatures:
             c.draw()
 
     def check_position(self, x, y):
+        for c in self.fruits:
+            if c.x == x and c.y == y:
+                return c
         for c in self.creatures:
             if c.x == x and c.y == y:
                 return c
         return None
+
+    def random_pos(self):
+        while True:
+            x = random.randint(1, self.width)
+            y = random.randint(1, self.height)
+            if self.check_position(x, y) is None:
+                break
+        return x, y
+
+    def add_fruit(self):
+        pos = self.random_pos()
+        self.fruits.append(Fruit(pos[0], pos[1]))
 
     def next_generation(self):
         pass
@@ -39,6 +53,20 @@ class World:
     def tick(self):
         for c in self.creatures:
             c.act()
+
+    def kill(self, obj, reborn=False):
+        if type(obj) == Fruit:
+            self.fruits.remove(obj)
+            if reborn:
+                self.add_fruit()
+
+
+class Fruit:
+    def __init__(self, x, y, health=1):
+        self.x = x
+        self.y = y
+        self.health = health
+        self.color = (0, 255, 255)
 
 
 class Creature:
@@ -63,26 +91,31 @@ class Creature:
         if self.health > 0:
             self.age += 1
             sensor = []
-            for d in DIRECTION:
-                s = self.look_in_direction(d)
-                sensor.append(s[0])
-                sensor.append(s[1])
-                sensor.append(s[2])
-            sensor.append(self.health)
+            s = self.look()
+            sensor.extend(s[0])
+            sensor.append(s[1])
             action = self.brain.think(sensor)
             self.move(MOVEMENT[action])
 
-    def look_in_direction(self, d):
-        pos_x, pos_y = self.x, self.y
-        distance = 0
-        while 0 < pos_x < self.world.width and self.world.height > pos_y > 0:
-            distance = distance + 1
-            pos_x = pos_x + d[0]
-            pos_y = pos_y + d[1]
-            obj = self.world.check_position(pos_x, pos_y)
-            if obj is not None:
-                return distance, obj.health, obj.get_strength()
-        return max(self.world.width, self.world.height), 0, 0
+    def look(self):
+        direction = [0, 0, 0, 0]
+        distance = 99999.99
+        nearest = (0, 0)
+        for fruit in self.world.fruits:
+            delta_x, delta_y = fruit.x - self.x, fruit.y - self.y
+            cur_distance = (delta_x ** 2 + delta_y ** 2) ** 0.5
+            if distance >= cur_distance:
+                distance = cur_distance
+                nearest = (delta_x, delta_y)
+        if nearest[0] > 0:
+            direction[0], direction[2] = nearest[0], 0
+        else:
+            direction[2], direction[0] = -nearest[0], 0
+        if nearest[1] > 0:
+            direction[1], direction[3] = nearest[1], 0
+        else:
+            direction[3], direction[1] = -nearest[1], 0
+        return direction, distance
 
     def move(self, d):
         pos_x, pos_y = self.x + d[0], self.y + d[1]
@@ -96,16 +129,15 @@ class Creature:
             pos_y = self.world.height
 
         creature_in_position = self.world.check_position(pos_x, pos_y)
-        if creature_in_position is None:
-            self.x, self.y = pos_x, pos_y
+        if type(creature_in_position) == Fruit and creature_in_position.health > 0:
+            self.attack(creature_in_position)
         else:
-            if creature_in_position.health > 0:
-                self.bite(creature_in_position)
+            self.x, self.y = pos_x, pos_y
 
     def get_strength(self, mode=1):
         return 0
 
-    def bite(self, victim):
+    def attack(self, victim):
         pass
 
 
@@ -117,18 +149,13 @@ class PredatorCreature(Creature):
     def get_strength(self, mode=1):
         return math.ceil(self.health / 5 / mode)
 
-    def bite(self, victim):
+    def attack(self, victim):
         my_strength = self.get_strength()
-        victim_strength = victim.get_strength(2)
         my_health = self.health + min(my_strength, victim.health)
         victim.health = max(0, victim.health - my_strength)
-        if victim.health > 0:
-            victim.health += min(victim_strength, self.health)
-            self.health = max(0, my_health - victim_strength)
-        else:
-            self.health = my_health
-        self.health = min(99, self.health)
-        victim.health = min(99, victim.health)
+        if victim.health == 0:
+            self.world.kill(victim, reborn=True)
+        self.health = my_health
 
 
 class VegetarianCreature(Creature):
@@ -152,10 +179,9 @@ class SmartCreature(PredatorCreature):
         net = neat.nn.FeedForwardNetwork.create(genome, world.config)
         self.brain = SmartBrain(net)
 
-    def bite(self, victim):
-        super().bite(victim)
+    def attack(self, victim):
+        super().attack(victim)
         self.genome.fitness = self.fitness
-        victim.genome.fitness = victim.fitness
 
 
 class Brain:

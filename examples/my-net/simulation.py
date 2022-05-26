@@ -1,9 +1,11 @@
+from typing import Any
+
 import pygame
 from classes import World
 
 
-class CreatureSprite(pygame.sprite.Sprite):
-    def __init__(self, creature, size, font):
+class MySprite(pygame.sprite.Sprite):
+    def __init__(self, creature, size, font=None):
         pygame.sprite.Sprite.__init__(self)
         self.size = size
         self.font = font
@@ -15,6 +17,8 @@ class CreatureSprite(pygame.sprite.Sprite):
         self.rect.x = (self.creature.x - 1) * self.size[0]
         self.rect.y = (self.creature.y - 1) * self.size[1]
 
+
+class CreatureSprite(MySprite):
     def update(self):
         self.rect.x = (self.creature.x - 1) * self.size[0]
         self.rect.y = (self.creature.y - 1) * self.size[1]
@@ -25,7 +29,13 @@ class CreatureSprite(pygame.sprite.Sprite):
         text = self.font.render(s, True, (0, 0, 0), self.color)
         w = text.get_width()
         h = text.get_height()
-        self.image.blit(text, [self.size[0]/2 - w/2, self.size[1]/2 - h/2])
+        self.image.blit(text, [self.size[0] / 2 - w / 2, self.size[1] / 2 - h / 2])
+
+
+class FruitSprite(MySprite):
+    def update(self):
+        if self.creature.health <= 0:
+            self.kill()
 
 
 def run_simulation(world):
@@ -44,8 +54,12 @@ def run_simulation(world):
     pygame.display.set_caption("Creatures")
     clock = pygame.time.Clock()
     all_sprites = pygame.sprite.Group()
+    fruit_sprites = pygame.sprite.Group()
     for c in world.creatures:
-        all_sprites.add(CreatureSprite(c, (int(SCREEN_WIDTH/WORLD_WIDTH), int(SCREEN_HEIGHT/WORLD_HEIGHT)), CRT_FONT))
+        all_sprites.add(
+            CreatureSprite(c, (int(SCREEN_WIDTH / WORLD_WIDTH), int(SCREEN_HEIGHT / WORLD_HEIGHT)), CRT_FONT))
+    for c in world.fruits:
+        fruit_sprites.add(FruitSprite(c, (int(SCREEN_WIDTH / WORLD_WIDTH), int(SCREEN_HEIGHT / WORLD_HEIGHT))))
 
     running = True
     while running:
@@ -55,9 +69,14 @@ def run_simulation(world):
                 running = False
         world.tick()
         all_sprites.update()
+        fruit_list = list(map(lambda x: x.creature, fruit_sprites.sprites()))
+        for f in world.fruits:
+            if f not in fruit_list:
+                fruit_sprites.add(FruitSprite(f, (int(SCREEN_WIDTH / WORLD_WIDTH), int(SCREEN_HEIGHT / WORLD_HEIGHT))))
+        fruit_sprites.update()
         screen.fill(SCREEN_COLOR)
         all_sprites.draw(screen)
+        fruit_sprites.draw(screen)
         pygame.display.flip()
 
     pygame.quit()
-

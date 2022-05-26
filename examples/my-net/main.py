@@ -7,7 +7,7 @@ from simulation import run_simulation
 
 def eval_genomes(genomes, config):
     world = World(genomes, config, 50, 50)
-    for _ in range(100):
+    for _ in range(200):
         world.tick()
 
 
@@ -24,10 +24,10 @@ def run(config_file):
     p.add_reporter(neat.StdOutReporter(True))
     stats = neat.StatisticsReporter()
     p.add_reporter(stats)
-    p.add_reporter(neat.Checkpointer(1))
+    # p.add_reporter(neat.Checkpointer(1))
 
     # Run for up to 300 generations.
-    winner = p.run(eval_genomes, 10)
+    winner = p.run(eval_genomes, 200)
 
     # Display the winning genome.
     print('\nBest genome:\n{!s}'.format(winner))
@@ -40,7 +40,7 @@ def run(config_file):
 
     # p = neat.Checkpointer.restore_checkpoint('neat-checkpoint-9')
     # p.run(eval_genomes, 1)
-    genomes = [[0, winner]] * 100
+    genomes = [[0, winner]] * 1
     run_simulation(World(genomes, config, 50, 50))
 
 
