@@ -1,11 +1,11 @@
-from typing import Any
+from typing import Tuple
 
 import pygame
-from classes import World
+from classes import Nature, World
 
 
 class MySprite(pygame.sprite.Sprite):
-    def __init__(self, creature, size, font=None):
+    def __init__(self, creature: Nature, size: Tuple[int, int], font=None):
         pygame.sprite.Sprite.__init__(self)
         self.size = size
         self.font = font
@@ -14,14 +14,14 @@ class MySprite(pygame.sprite.Sprite):
         self.color = creature.color
         self.image.fill(self.color)
         self.rect = self.image.get_rect()
-        self.rect.x = (self.creature.x - 1) * self.size[0]
-        self.rect.y = (self.creature.y - 1) * self.size[1]
+        self.rect.x = (self.creature.pos.x - 1) * self.size[0]
+        self.rect.y = (self.creature.pos.y - 1) * self.size[1]
 
 
 class CreatureSprite(MySprite):
-    def update(self):
-        self.rect.x = (self.creature.x - 1) * self.size[0]
-        self.rect.y = (self.creature.y - 1) * self.size[1]
+    def update(self) -> None:
+        self.rect.x = (self.creature.pos.x - 1) * self.size[0]
+        self.rect.y = (self.creature.pos.y - 1) * self.size[1]
         if self.creature.health == 0 and self.color != (0, 0, 0):
             self.color = (0, 0, 0)
             self.image.fill(self.color)
@@ -33,16 +33,15 @@ class CreatureSprite(MySprite):
 
 
 class FruitSprite(MySprite):
-    def update(self):
+    def update(self) -> None:
         if self.creature.health <= 0:
             self.kill()
 
 
-def run_simulation(world):
+def run_simulation(world: World) -> None:
     pygame.init()
     WORLD_WIDTH = 50
     WORLD_HEIGHT = 50
-    WORLD_CAPACITY = 50
     SCREEN_WIDTH = 500
     SCREEN_HEIGHT = 500
     SCREEN_FPS = 20

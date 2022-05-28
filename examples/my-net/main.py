@@ -1,5 +1,6 @@
 import os
 import neat
+import pickle
 # import visualize
 from classes import World
 from simulation import run_simulation
@@ -9,6 +10,21 @@ def eval_genomes(genomes, config):
     world = World(genomes, config, 50, 50)
     for _ in range(200):
         world.tick()
+
+
+def save_winner(winner, filename="winner.dat"):
+    with open(filename, "wb") as f:
+        pickle.dump(winner, f)
+
+
+def load_winner(filename="winner.dat"):
+    try:
+        with open("winner.dat", "rb") as f:
+            w = pickle.load(f)
+            return w
+    except FileNotFoundError:
+        print(f"Запрашиваемый файл {filename } не найден")
+        return None
 
 
 def run(config_file):
@@ -28,6 +44,7 @@ def run(config_file):
 
     # Run for up to 300 generations.
     winner = p.run(eval_genomes, 200)
+    save_winner(winner)
 
     # Display the winning genome.
     print('\nBest genome:\n{!s}'.format(winner))
