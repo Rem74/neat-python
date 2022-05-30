@@ -6,11 +6,8 @@ from typing import Tuple, List, Iterable
 import neat
 import numpy as np
 from dataclasses import dataclass
-
 from neat import DefaultGenome
-from neat.genome import DefaultGenomeConfig
 from neat.nn import FeedForwardNetwork
-
 
 Color = Tuple[int, int, int]
 
@@ -68,7 +65,7 @@ class Creature(Nature):
         return self.health
 
     def act(self):
-        pass
+        self.age += 1
 
     def react(self, source: Nature):
         pass
@@ -95,7 +92,8 @@ class PredatorCreature(Creature):
         direction_dist = [0, 0, 0, 0]
         distance = 99999.99
         nearest = (0, 0)
-        for fruit in self.world.fruits:
+        fruits = list(filter(lambda x: type(x) == Fruit, self.world.creatures))
+        for fruit in fruits:
             delta_x, delta_y = fruit.pos.x - self.pos.x, fruit.pos.y - self.pos.y
             cur_distance = (delta_x ** 2 + delta_y ** 2) ** 0.5
             if distance >= cur_distance:
@@ -124,7 +122,7 @@ class PredatorCreature(Creature):
         my_health = self.health + min(my_strength, victim.health)
         victim.health = max(0, victim.health - my_strength)
         if victim.health == 0:
-            self.world.kill(victim, reborn=True)
+            self.world.kill(victim)
         self.health = my_health
 
 
@@ -178,11 +176,9 @@ class World:
         self.height = height
         self.generation = 1
         self.config = config
-        self.fruits = []
         self.creatures = []
-        for genome_id, genome in genomes:
-            pos = self.random_pos()
-            self.creatures.append(SmartCreature(self, genome, pos))
+        for _, genome in genomes:
+            self.add_creature(genome)
         for _ in range(50):
             self.add_fruit()
 
@@ -202,10 +198,7 @@ class World:
             pos.y = self.height
         return pos
 
-    def check_position(self, pos: Position) -> Nature:
-        for c in self.fruits:
-            if c.pos.x == pos.x and c.pos.y == pos.y:
-                return c
+    def check_position(self, pos: Position) -> Nature | None:
         for c in self.creatures:
             if c.pos.x == pos.x and c.pos.y == pos.y:
                 return c
@@ -220,7 +213,11 @@ class World:
 
     def add_fruit(self) -> None:
         pos = self.random_pos()
-        self.fruits.append(Fruit(self, pos))
+        self.creatures.append(Fruit(self, pos))
+
+    def add_creature(self, genome) -> None:
+        pos = self.random_pos()
+        self.creatures.append(SmartCreature(self, genome, pos))
 
     def next_generation(self) -> None:
         pass
@@ -229,8 +226,7 @@ class World:
         for c in self.creatures:
             c.act()
 
-    def kill(self, obj: Nature, reborn=False) -> None:
-        if type(obj) == Fruit:
-            self.fruits.remove(obj)
-            if reborn:
-                self.add_fruit()
+    def kill(self, creature: Nature) -> None:
+        self.creatures.remove(creature)
+        if type(creature) == Fruit:
+            self.add_fruit()

@@ -1,7 +1,7 @@
 from typing import Tuple
 
 import pygame
-from classes import Nature, World
+from classes import Nature, World, Fruit, SmartCreature
 
 
 class MySprite(pygame.sprite.Sprite):
@@ -39,6 +39,7 @@ class FruitSprite(MySprite):
 
 
 def run_simulation(world: World) -> None:
+    SPRITE = {Fruit: FruitSprite, SmartCreature: CreatureSprite}
     pygame.init()
     WORLD_WIDTH = 50
     WORLD_HEIGHT = 50
@@ -53,12 +54,8 @@ def run_simulation(world: World) -> None:
     pygame.display.set_caption("Creatures")
     clock = pygame.time.Clock()
     all_sprites = pygame.sprite.Group()
-    fruit_sprites = pygame.sprite.Group()
     for c in world.creatures:
-        all_sprites.add(
-            CreatureSprite(c, (int(SCREEN_WIDTH / WORLD_WIDTH), int(SCREEN_HEIGHT / WORLD_HEIGHT)), CRT_FONT))
-    for c in world.fruits:
-        fruit_sprites.add(FruitSprite(c, (int(SCREEN_WIDTH / WORLD_WIDTH), int(SCREEN_HEIGHT / WORLD_HEIGHT))))
+        all_sprites.add(SPRITE[type(c)](c, (int(SCREEN_WIDTH / WORLD_WIDTH), int(SCREEN_HEIGHT / WORLD_HEIGHT)), CRT_FONT))
 
     running = True
     while running:
@@ -67,15 +64,13 @@ def run_simulation(world: World) -> None:
             if event.type == pygame.QUIT:
                 running = False
         world.tick()
+        sprite_list = list(map(lambda x: x.creature, all_sprites.sprites()))
+        for c in world.creatures:
+            if c not in sprite_list:
+                all_sprites.add(SPRITE[type(c)](c, (int(SCREEN_WIDTH / WORLD_WIDTH), int(SCREEN_HEIGHT / WORLD_HEIGHT)), CRT_FONT))
         all_sprites.update()
-        fruit_list = list(map(lambda x: x.creature, fruit_sprites.sprites()))
-        for f in world.fruits:
-            if f not in fruit_list:
-                fruit_sprites.add(FruitSprite(f, (int(SCREEN_WIDTH / WORLD_WIDTH), int(SCREEN_HEIGHT / WORLD_HEIGHT))))
-        fruit_sprites.update()
         screen.fill(SCREEN_COLOR)
         all_sprites.draw(screen)
-        fruit_sprites.draw(screen)
         pygame.display.flip()
 
     pygame.quit()
