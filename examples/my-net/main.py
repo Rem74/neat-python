@@ -8,7 +8,7 @@ from simulation import run_simulation
 
 def eval_genomes(genomes, config):
     world = World(genomes, config, 50, 50)
-    for _ in range(200):
+    for _ in range(300):
         world.tick()
 
 
@@ -42,9 +42,10 @@ def run(config_file):
     p.add_reporter(stats)
     # p.add_reporter(neat.Checkpointer(1))
 
-    # Run for up to 300 generations.
-    winner = p.run(eval_genomes, 100)
+    # Run for up to 200 generations.
+    winner = p.run(eval_genomes, 200)
     save_winner(winner)
+    # winner = load_winner()
 
     # Display the winning genome.
     print('\nBest genome:\n{!s}'.format(winner))

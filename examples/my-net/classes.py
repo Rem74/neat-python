@@ -24,11 +24,19 @@ MOVEMENT = (Vector(-1, 0), Vector(0, -1), Vector(1, 0), Vector(0, 1))
 
 
 @dataclass
+class RelativePosition:
+    delta: Vector
+    distance: float
+    strength: int
+
+
+@dataclass
 class Nature(ABC):
-    world: world.World
+    world: World
     pos: Position
     color: Color
     health: int
+    reborn: bool = False
 
     def draw(self):
         print(self, " X=", self.pos.x, " Y=", self.pos.y, " HEALTH=", self.health)
@@ -38,19 +46,45 @@ class Nature(ABC):
         pass
 
     @abstractmethod
-    def react(self, source: Nature) -> None:
+    def react(self, source: Nature) -> int:
         pass
+
+    @property
+    def can_be_attacked(self) -> bool:
+        return False
+
+    @property
+    def strength(self) -> int:
+        return 0
 
 
 class Fruit(Nature):
     def __init__(self, world: World, pos: Position, health: int = 1):
-        super().__init__(world, pos, (0, 255, 255), health)
+        super().__init__(world, pos, (255, 255, 0), health, reborn=True)
+
+    @property
+    def can_be_attacked(self) -> bool:
+        return self.health > 0
 
     def act(self):
         pass
 
-    def react(self, source: Nature):
-        pass
+    def react(self, source: Nature) -> int:
+        result = self.health - self.strength
+        self.health = max(0, self.health - source.strength)
+        if self.health <= 0:
+            self.world.kill(self)
+        return min(source.strength, result)
+
+
+class PoisonedFruit(Fruit):
+    def __init__(self, world: World, pos: Position, health: int = 1):
+        super().__init__(world, pos, health)
+        self.color = (0, 255, 255)
+
+    @property
+    def strength(self) -> int:
+        return 10
 
 
 class Creature(Nature):
@@ -65,40 +99,66 @@ class Creature(Nature):
         return self.health
 
     def act(self):
-        self.age += 1
+        self.age += 3
 
-    def react(self, source: Nature):
-        pass
+    def react(self, source: Nature) -> int:
+        return 0
 
 
 class PredatorCreature(Creature):
     def __init__(self, world: World, pos: Position, health: int = 10):
         super().__init__(world, pos, (255, 0, 0), health)
 
-    def get_strength(self, mode: int = 1) -> int:
-        return math.ceil(self.health / 5 / mode)
+    @property
+    def strength(self) -> int:
+        return math.ceil(self.health / 5)
 
     def act(self) -> None:
         if self.health > 0:
             self.age += 1
-            sensor = []
-            s = self._look()
-            sensor.extend(s[0])
-            sensor.append(s[1])
+            sensor = self.look()
             action = self.brain.think(sensor)
-            self._move(MOVEMENT[action])
+            self.move(MOVEMENT[action])
 
-    def _look(self) -> Tuple[List[int], float]:
+    # def look(self) -> List[...]:
+    #     inputs = [0] * 12
+    #     dist_by_type = {Fruit: RelativePosition(Vector(0, 0), 99999.99, 0),
+    #                     PoisonedFruit: RelativePosition(Vector(0, 0), 99999.9, 0)}
+    #     victims = list(filter(lambda x: x.can_be_attacked, self.world.creatures))
+    #     for victim in victims:
+    #         delta = Vector(victim.pos.x - self.pos.x, victim.pos.y - self.pos.y)
+    #         cur_distance = (delta.x ** 2 + delta.y ** 2) ** 0.5
+    #         if dist_by_type[type(victim)].distance > cur_distance:
+    #             dist_by_type[type(victim)].distance = cur_distance
+    #             dist_by_type[type(victim)].delta = delta
+    #             dist_by_type[type(victim)].strength = victim.strength
+    #     offset = 0
+    #     for d in dist_by_type:
+    #         if dist_by_type[d].delta.x > 0:
+    #             inputs[0+offset], inputs[2+offset] = dist_by_type[d].delta.x, 0
+    #         else:
+    #             inputs[2+offset], inputs[0+offset] = -dist_by_type[d].delta.x, 0
+    #         if dist_by_type[d].delta.y > 0:
+    #             inputs[1+offset], inputs[3+offset] = dist_by_type[d].delta.y, 0
+    #         else:
+    #             inputs[3+offset], inputs[1+offset] = -dist_by_type[d].delta.y, 0
+    #         inputs[4+offset] = dist_by_type[d].distance
+    #         inputs[5+offset] = dist_by_type[d].strength*100
+    #         offset += 6
+    #     return inputs
+    def look(self) -> List[...]:
         direction_dist = [0, 0, 0, 0]
         distance = 99999.99
         nearest = (0, 0)
-        fruits = list(filter(lambda x: type(x) == Fruit, self.world.creatures))
+        strength = 0
+        fruits = list(filter(lambda x: x.can_be_attacked, self.world.creatures))
         for fruit in fruits:
             delta_x, delta_y = fruit.pos.x - self.pos.x, fruit.pos.y - self.pos.y
             cur_distance = (delta_x ** 2 + delta_y ** 2) ** 0.5
             if distance >= cur_distance:
                 distance = cur_distance
                 nearest = (delta_x, delta_y)
+                strength = fruit.strength
         if nearest[0] > 0:
             direction_dist[0], direction_dist[2] = nearest[0], 0
         else:
@@ -107,23 +167,22 @@ class PredatorCreature(Creature):
             direction_dist[1], direction_dist[3] = nearest[1], 0
         else:
             direction_dist[3], direction_dist[1] = -nearest[1], 0
-        return direction_dist, distance
+        direction_dist.append(distance)
+        direction_dist.append(strength*10)
+        return direction_dist
 
-    def _move(self, delta: Vector) -> None:
+    def move(self, delta: Vector) -> None:
         pos = self.world.calculate_position(self.pos, delta)
-        creature_in_position = self.world.check_position(pos)
-        if type(creature_in_position) == Fruit and creature_in_position.health > 0:
-            self._attack(creature_in_position)
-        else:
+        creature = self.world.check_position(pos)
+        if creature is None or not creature.can_be_attacked:
             self.pos = pos
+        else:
+            self.attack(creature)
 
-    def _attack(self, victim: Nature) -> None:
-        my_strength = self.get_strength()
-        my_health = self.health + min(my_strength, victim.health)
-        victim.health = max(0, victim.health - my_strength)
-        if victim.health == 0:
-            self.world.kill(victim)
-        self.health = my_health
+    def attack(self, victim: Nature) -> None:
+        self.health += victim.react(self)
+        if self.health <= 0:
+            self.world.kill(self)
 
 
 class VegetarianCreature(Creature):
@@ -146,8 +205,8 @@ class SmartCreature(PredatorCreature):
         net = neat.nn.FeedForwardNetwork.create(genome, world.config)
         self.brain = SmartBrain(net)
 
-    def _attack(self, victim: Nature) -> None:
-        super()._attack(victim)
+    def attack(self, victim: Nature) -> None:
+        super().attack(victim)
         self.genome.fitness = self.fitness
 
 
@@ -180,7 +239,9 @@ class World:
         for _, genome in genomes:
             self.add_creature(genome)
         for _ in range(50):
-            self.add_fruit()
+            self.add_fruit(Fruit)
+        # for _ in range(20):
+        #     self.add_fruit(PoisonedFruit)
 
     def draw(self) -> None:
         for c in self.creatures:
@@ -211,13 +272,14 @@ class World:
                 break
         return pos
 
-    def add_fruit(self) -> None:
-        pos = self.random_pos()
-        self.creatures.append(Fruit(self, pos))
-
     def add_creature(self, genome) -> None:
         pos = self.random_pos()
         self.creatures.append(SmartCreature(self, genome, pos))
+
+    def add_fruit(self, fruit_type) -> None:
+        pos = self.random_pos()
+        fruit = fruit_type(self, pos)
+        self.creatures.append(fruit)
 
     def next_generation(self) -> None:
         pass
@@ -228,5 +290,5 @@ class World:
 
     def kill(self, creature: Nature) -> None:
         self.creatures.remove(creature)
-        if type(creature) == Fruit:
-            self.add_fruit()
+        if creature.reborn:
+            self.add_fruit(type(creature))

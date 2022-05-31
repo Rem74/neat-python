@@ -1,7 +1,7 @@
 from typing import Tuple
 
 import pygame
-from classes import Nature, World, Fruit, SmartCreature
+from classes import Nature, World, Fruit, PoisonedFruit, SmartCreature
 
 
 class MySprite(pygame.sprite.Sprite):
@@ -39,7 +39,7 @@ class FruitSprite(MySprite):
 
 
 def run_simulation(world: World) -> None:
-    SPRITE = {Fruit: FruitSprite, SmartCreature: CreatureSprite}
+    SPRITE = {Fruit: FruitSprite, SmartCreature: CreatureSprite, PoisonedFruit: FruitSprite,}
     pygame.init()
     WORLD_WIDTH = 50
     WORLD_HEIGHT = 50
