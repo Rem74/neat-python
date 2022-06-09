@@ -39,7 +39,7 @@ class FruitSprite(MySprite):
 
 
 def run_simulation(world: World) -> None:
-    SPRITE = {Fruit: FruitSprite, SmartCreature: CreatureSprite, PoisonedFruit: FruitSprite,}
+    SPRITE = {Fruit: FruitSprite, SmartCreature: CreatureSprite, PoisonedFruit: FruitSprite}
     pygame.init()
     WORLD_WIDTH = 50
     WORLD_HEIGHT = 50

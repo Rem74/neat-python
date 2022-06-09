@@ -1,15 +1,15 @@
 from __future__ import annotations
 import math
 import random
-from abc import ABC, abstractmethod
-from typing import Tuple, List, Iterable
+import pygame as pg
+from abc import abstractmethod
+from typing import List, Iterable
 import neat
 import numpy as np
 from dataclasses import dataclass
 from neat import DefaultGenome
 from neat.nn import FeedForwardNetwork
-
-Color = Tuple[int, int, int]
+from geometry import *
 
 
 @dataclass
@@ -20,23 +20,14 @@ class Position:
 
 Vector = Position
 
-MOVEMENT = (Vector(-1, 0), Vector(0, -1), Vector(1, 0), Vector(0, 1))
 
-
-@dataclass
-class RelativePosition:
-    delta: Vector
-    distance: float
-    strength: int
-
-
-@dataclass
-class Nature(ABC):
-    world: World
-    pos: Position
-    color: Color
-    health: int
-    reborn: bool = False
+class Nature(pg.sprite.Sprite):
+    def __init__(self, world: World, pos: Position, health: int, reborn: bool):
+        pg.sprite.Sprite.__init__(self)
+        self.world = world
+        self.pos = pos
+        self.health = health
+        self.reborn = reborn
 
     def draw(self):
         print(self, " X=", self.pos.x, " Y=", self.pos.y, " HEALTH=", self.health)
@@ -60,13 +51,18 @@ class Nature(ABC):
 
 class Fruit(Nature):
     def __init__(self, world: World, pos: Position, health: int = 1):
-        super().__init__(world, pos, (255, 255, 0), health, reborn=True)
+        super().__init__(world, pos, health, reborn=True)
+        self.image = pg.Surface((10, 10))
+        self.image.fill((255, 255, 0))
+        self.rect = self.image.get_rect()
+        self.rect.x = self.pos.x
+        self.rect.y = self.pos.y
 
     @property
     def can_be_attacked(self) -> bool:
         return self.health > 0
 
-    def act(self):
+    def act(self) -> None:
         pass
 
     def react(self, source: Nature) -> int:
@@ -76,11 +72,14 @@ class Fruit(Nature):
             self.world.kill(self)
         return min(source.strength, result)
 
+    def update(self) -> None:
+        if self.health <= 0:
+            self.kill()
+
 
 class PoisonedFruit(Fruit):
     def __init__(self, world: World, pos: Position, health: int = 1):
         super().__init__(world, pos, health)
-        self.color = (0, 255, 255)
 
     @property
     def strength(self) -> int:
@@ -88,26 +87,46 @@ class PoisonedFruit(Fruit):
 
 
 class Creature(Nature):
-    def __init__(self, world: World, pos: Position, color: Color, health: int = 10):
-        super().__init__(world, pos, color, health)
-        self.age = 0
+    orientation: float
+    speed: float = 5.00
+    age: int = 0
+    generation: int
+    brain: Brain = None
+
+    def __init__(self, world: World, pos: Position, image: pg.Surface, health: int = 10):
+        super().__init__(world, pos, health, False)
         self.generation = world.generation
-        self.brain = None
+        self.orientation = random.random() * math.pi
+        self.image = image
+        self.initial_image = image
+        self.rect = self.image.get_rect()
 
     @property
     def fitness(self) -> int:
         return self.health
 
     def act(self):
-        self.age += 3
+        self.age += 1
 
     def react(self, source: Nature) -> int:
         return 0
 
+    def update(self) -> None:
+        self.rotate(self.orientation)
+        self.rect.x = self.pos.x
+        self.rect.y = self.pos.y
+
+    def rotate(self, radians: float):
+        self.image = pg.transform.rotate(self.initial_image, -math.degrees(radians) - 180)
+
 
 class PredatorCreature(Creature):
+    sensors_qty: int = 9
+    sensors_view_angle: int = 90
+    sensor_len: int = 200
+
     def __init__(self, world: World, pos: Position, health: int = 10):
-        super().__init__(world, pos, (255, 0, 0), health)
+        super().__init__(world, pos, pg.image.load("creature.png"), health)
 
     @property
     def strength(self) -> int:
@@ -117,67 +136,44 @@ class PredatorCreature(Creature):
         if self.health > 0:
             self.age += 1
             sensor = self.look()
-            action = self.brain.think(sensor)
-            self.move(MOVEMENT[action])
+            if self.brain is not None:
+                action = self.brain.think(sensor)
+                self.orientation += math.radians(10) * (action - 1)
+            self.move()
 
-    # def look(self) -> List[...]:
-    #     inputs = [0] * 12
-    #     dist_by_type = {Fruit: RelativePosition(Vector(0, 0), 99999.99, 0),
-    #                     PoisonedFruit: RelativePosition(Vector(0, 0), 99999.9, 0)}
-    #     victims = list(filter(lambda x: x.can_be_attacked, self.world.creatures))
-    #     for victim in victims:
-    #         delta = Vector(victim.pos.x - self.pos.x, victim.pos.y - self.pos.y)
-    #         cur_distance = (delta.x ** 2 + delta.y ** 2) ** 0.5
-    #         if dist_by_type[type(victim)].distance > cur_distance:
-    #             dist_by_type[type(victim)].distance = cur_distance
-    #             dist_by_type[type(victim)].delta = delta
-    #             dist_by_type[type(victim)].strength = victim.strength
-    #     offset = 0
-    #     for d in dist_by_type:
-    #         if dist_by_type[d].delta.x > 0:
-    #             inputs[0+offset], inputs[2+offset] = dist_by_type[d].delta.x, 0
-    #         else:
-    #             inputs[2+offset], inputs[0+offset] = -dist_by_type[d].delta.x, 0
-    #         if dist_by_type[d].delta.y > 0:
-    #             inputs[1+offset], inputs[3+offset] = dist_by_type[d].delta.y, 0
-    #         else:
-    #             inputs[3+offset], inputs[1+offset] = -dist_by_type[d].delta.y, 0
-    #         inputs[4+offset] = dist_by_type[d].distance
-    #         inputs[5+offset] = dist_by_type[d].strength*100
-    #         offset += 6
-    #     return inputs
     def look(self) -> List[...]:
-        direction_dist = [0, 0, 0, 0]
-        distance = 99999.99
-        nearest = (0, 0)
-        strength = 0
-        fruits = list(filter(lambda x: x.can_be_attacked, self.world.creatures))
-        for fruit in fruits:
-            delta_x, delta_y = fruit.pos.x - self.pos.x, fruit.pos.y - self.pos.y
-            cur_distance = (delta_x ** 2 + delta_y ** 2) ** 0.5
-            if distance >= cur_distance:
-                distance = cur_distance
-                nearest = (delta_x, delta_y)
-                strength = fruit.strength
-        if nearest[0] > 0:
-            direction_dist[0], direction_dist[2] = nearest[0], 0
-        else:
-            direction_dist[2], direction_dist[0] = -nearest[0], 0
-        if nearest[1] > 0:
-            direction_dist[1], direction_dist[3] = nearest[1], 0
-        else:
-            direction_dist[3], direction_dist[1] = -nearest[1], 0
-        # direction_dist.append(distance)
-        # direction_dist.append(strength*10)
-        return direction_dist
+        def get_sensor(i):
+            sensors_view_angle_rad = math.radians(self.sensors_view_angle)
+            angle = math.radians(self.sensors_view_angle/self.sensors_qty)
+            sensor_direction = self.orientation - sensors_view_angle_rad/2 + i * angle
+            start_point = self.rect.center
+            end_point = (start_point[0] + round(self.sensor_len * math.cos(sensor_direction)),
+                         start_point[1] + round(self.sensor_len * math.sin(sensor_direction)))
+            return start_point, end_point
 
-    def move(self, delta: Vector) -> None:
-        pos = self.world.calculate_position(self.pos, delta)
-        creature = self.world.check_position(pos)
-        if creature is None or not creature.can_be_attacked:
-            self.pos = pos
-        else:
-            self.attack(creature)
+        def get_nearest(cur_sensor):
+            fruits = list(filter(lambda x: x.can_be_attacked, self.world.creatures))
+            min_distance = 9999
+            for f in fruits:
+                distance_to_obj = distance_to_rect(cur_sensor, Rectangle(f.rect.left, f.rect.top, f.rect.width, f.rect.height))
+                if distance_to_obj is None:
+                    distance_to_obj = 9999
+                min_distance = min(min_distance, distance_to_obj)
+            return min_distance
+
+        sensor_distance = []
+        for n in range(self.sensors_qty):
+            sensor = get_sensor(n)
+            sensor_distance.append(get_nearest(sensor))
+        return sensor_distance
+
+    def move(self) -> None:
+        self.pos = self.world.calculate_position(self.pos, self.orientation, self.speed)
+        self.update()
+        self.speed = max(0.00, self.speed * (1 - self.world.friction))
+        for c in self.world.creatures:
+            if c is not self and self.rect.colliderect(c.rect) and c.can_be_attacked:
+                self.attack(c)
 
     def attack(self, victim: Nature) -> None:
         self.health += victim.react(self)
@@ -187,7 +183,7 @@ class PredatorCreature(Creature):
 
 class VegetarianCreature(Creature):
     def __init__(self, world: World, pos: Position, health=10):
-        super().__init__(world, pos, (0, 255, 0), health)
+        super().__init__(world, pos, pg.image.load("creature.png"), health)
 
     @property
     def fitness(self):
@@ -236,9 +232,10 @@ class World:
         self.generation = 1
         self.config = config
         self.creatures = []
+        self.friction = 0.00
         for _, genome in genomes:
             self.add_creature(genome)
-        for _ in range(20):
+        for _ in range(50):
             self.add_fruit(Fruit)
         # for _ in range(20):
         #     self.add_fruit(PoisonedFruit)
@@ -247,8 +244,9 @@ class World:
         for c in self.creatures:
             c.draw()
 
-    def calculate_position(self, cur_pos: Position, delta: Vector) -> Position:
-        pos = Position(cur_pos.x + delta.x, cur_pos.y + delta.y)
+    def calculate_position(self, cur_pos: Position, orientation: float, speed: float) -> Position:
+        pos = Position(cur_pos.x + round(speed * math.cos(orientation)),
+                       cur_pos.y + round(speed * math.sin(orientation)))
         if pos.x > self.width:
             pos.x = 1
         elif pos.x < 1:
