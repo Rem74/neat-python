@@ -11,6 +11,7 @@ def run_simulation(world: World) -> None:
 
     # pygame.mixer.init()
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    world.set_screen(screen)
     pygame.display.set_caption("Creatures")
     clock = pygame.time.Clock()
     all_sprites = pygame.sprite.Group()
@@ -28,8 +29,8 @@ def run_simulation(world: World) -> None:
         for c in world.creatures:
             if c not in sprite_list:
                 all_sprites.add(c)
-        all_sprites.update()
         screen.fill(SCREEN_COLOR)
+        all_sprites.update()
         all_sprites.draw(screen)
         pygame.display.flip()
 

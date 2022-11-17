@@ -1,3 +1,4 @@
+import math
 from typing import NamedTuple
 
 
@@ -52,3 +53,7 @@ def distance_to_rect(line, rect: Rectangle):
 
 def distance(point1, point2):
     return ((point1[0] - point2[0])**2 + (point1[1] - point2[1])**2) ** (1/2)
+
+
+def get_vector_end(start_point, length, angle):
+    return start_point[0] + round(length * math.cos(angle)), start_point[1] + round(length * math.sin(angle))

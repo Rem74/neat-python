@@ -1,21 +1,28 @@
 from __future__ import annotations
-import math
-import random
-import pygame as pg
 from abc import abstractmethod
-from typing import List, Iterable
-import neat
-import numpy as np
 from dataclasses import dataclass
+from geometry import *
 from neat import DefaultGenome
 from neat.nn import FeedForwardNetwork
-from geometry import *
+from typing import List, Iterable, Tuple
+import math
+import neat
+import numpy as np
+import pygame as pg
+import random
 
 
 @dataclass
 class Position:
     x: int
     y: int
+
+
+@dataclass
+class Sensor:
+    start_point: Tuple[int, int]
+    end_point: Tuple[int, int]
+    angle: float
 
 
 Vector = Position
@@ -52,8 +59,7 @@ class Nature(pg.sprite.Sprite):
 class Fruit(Nature):
     def __init__(self, world: World, pos: Position, health: int = 1):
         super().__init__(world, pos, health, reborn=True)
-        self.image = pg.Surface((10, 10))
-        self.image.fill((255, 255, 0))
+        self.image = pg.image.load("fruit.png")
         self.rect = self.image.get_rect()
         self.rect.x = self.pos.x
         self.rect.y = self.pos.y
@@ -88,7 +94,7 @@ class PoisonedFruit(Fruit):
 
 class Creature(Nature):
     orientation: float
-    speed: float = 5.00
+    speed: float = 10.00
     age: int = 0
     generation: int
     brain: Brain = None
@@ -118,12 +124,14 @@ class Creature(Nature):
 
     def rotate(self, radians: float):
         self.image = pg.transform.rotate(self.initial_image, -math.degrees(radians) - 180)
+        self.rect = self.image.get_rect()
 
 
 class PredatorCreature(Creature):
     sensors_qty: int = 9
     sensors_view_angle: int = 90
     sensor_len: int = 200
+    sensors: List[Sensor] = []
 
     def __init__(self, world: World, pos: Position, health: int = 10):
         super().__init__(world, pos, pg.image.load("creature.png"), health)
@@ -141,31 +149,38 @@ class PredatorCreature(Creature):
                 self.orientation += math.radians(10) * (action - 1)
             self.move()
 
-    def look(self) -> List[...]:
+    def update_sensors(self):
         def get_sensor(i):
             sensors_view_angle_rad = math.radians(self.sensors_view_angle)
             angle = math.radians(self.sensors_view_angle/self.sensors_qty)
             sensor_direction = self.orientation - sensors_view_angle_rad/2 + i * angle
             start_point = self.rect.center
-            end_point = (start_point[0] + round(self.sensor_len * math.cos(sensor_direction)),
-                         start_point[1] + round(self.sensor_len * math.sin(sensor_direction)))
-            return start_point, end_point
+            end_point = get_vector_end(start_point, self.sensor_len, sensor_direction)
+            return Sensor(start_point, end_point, sensor_direction)
 
-        def get_nearest(cur_sensor):
+        self.sensors.clear()
+        self.sensors = [get_sensor(i) for i in range(self.sensors_qty)]
+
+    def look(self) -> List[...]:
+        def get_distance_to_nearest(cur_sensor):
             fruits = list(filter(lambda x: x.can_be_attacked, self.world.creatures))
             min_distance = 9999
             for f in fruits:
-                distance_to_obj = distance_to_rect(cur_sensor, Rectangle(f.rect.left, f.rect.top, f.rect.width, f.rect.height))
+                distance_to_obj = distance_to_rect((cur_sensor.start_point, cur_sensor.end_point),
+                                                   Rectangle(f.rect.left, f.rect.top, f.rect.width, f.rect.height))
                 if distance_to_obj is None:
                     distance_to_obj = 9999
                 min_distance = min(min_distance, distance_to_obj)
             return min_distance
 
-        sensor_distance = []
-        for n in range(self.sensors_qty):
-            sensor = get_sensor(n)
-            sensor_distance.append(get_nearest(sensor))
-        return sensor_distance
+        self.update_sensors()
+        distances = []
+        for s in self.sensors:
+            d = get_distance_to_nearest(s)
+            if d < self.sensor_len:
+                s.end_point = get_vector_end(s.start_point, d, s.angle)
+            distances.append(d)
+        return distances
 
     def move(self) -> None:
         self.pos = self.world.calculate_position(self.pos, self.orientation, self.speed)
@@ -179,6 +194,15 @@ class PredatorCreature(Creature):
         self.health += victim.react(self)
         if self.health <= 0:
             self.world.kill(self)
+
+    def update(self) -> None:
+        def draw_sensors(screen):
+            for s in self.sensors:
+                pg.draw.line(screen, (0, 255, 255), s.start_point, s.end_point)
+
+        super().update()
+        if self.world.screen is not None:
+            draw_sensors(self.world.screen)
 
 
 class VegetarianCreature(Creature):
@@ -233,6 +257,7 @@ class World:
         self.config = config
         self.creatures = []
         self.friction = 0.00
+        self.screen = None
         for _, genome in genomes:
             self.add_creature(genome)
         for _ in range(50):
@@ -243,6 +268,9 @@ class World:
     def draw(self) -> None:
         for c in self.creatures:
             c.draw()
+
+    def set_screen(self, screen):
+        self.screen = screen
 
     def calculate_position(self, cur_pos: Position, orientation: float, speed: float) -> Position:
         pos = Position(cur_pos.x + round(speed * math.cos(orientation)),

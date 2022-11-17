@@ -9,7 +9,7 @@ from simulation import run_simulation
 def eval_genomes(genomes, config):
     world = World(genomes, config, 1200, 800)
     # run_simulation(world)
-    for _ in range(100):
+    for _ in range(200):
         world.tick()
 
 
@@ -34,24 +34,25 @@ def run(config_file):
                          neat.DefaultSpeciesSet, neat.DefaultStagnation,
                          config_file)
 
-    # Create the population, which is the top-level object for a NEAT run.
-    p = neat.Population(config)
-    #
-    # # Add a stdout reporter to show progress in the terminal.
-    p.add_reporter(neat.StdOutReporter(True))
-    # stats = neat.StatisticsReporter()
-    # p.add_reporter(stats)
-    # # p.add_reporter(neat.Checkpointer(1))
-    #
-    # # Run for up to 200 generations.
-    winner = p.run(eval_genomes, 50)
-    save_winner(winner)
-    # # winner = load_winner()
+    if 0:
+        # Create the population, which is the top-level object for a NEAT run.
+        p = neat.Population(config)
+        #
+        # # Add a stdout reporter to show progress in the terminal.
+        p.add_reporter(neat.StdOutReporter(True))
+        # stats = neat.StatisticsReporter()
+        # p.add_reporter(stats)
+        # # p.add_reporter(neat.Checkpointer(1))
+        #
+        # # Run for up to 200 generations.
+        winner = p.run(eval_genomes, 50)
+        save_winner(winner)
+    winner = load_winner()
 
     # Display the winning genome.
     # print('\nBest genome:\n{!s}'.format(winner))
 
-    genomes = [[0, winner]] * 50
+    genomes = [[0, winner]] * 5
     run_simulation(World(genomes, config, 1200, 800))
 
 
